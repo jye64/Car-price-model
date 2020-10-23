@@ -11,11 +11,12 @@ import tensorflow as tf
 
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers.experimental import preprocessing
+from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import RandomizedSearchCV
 
 
 # ================= Configure GPU ====================
@@ -33,9 +34,12 @@ dataFile = 'audi.csv'
 data = pd.read_csv(dataFile, sep=',')
 print(data)
 
-print(data.isnull().sum())
+# TODO: Shorten training time
+data = data[:500]
 
 # ============= EDA and Preprocessing ======================
+
+print(data.isnull().sum())
 
 # compute age of car by subtracting 2020 from the 'year' field
 data["age_of_car"] = 2020 - data["year"]
@@ -71,18 +75,46 @@ Y_test_scaled = scalerY.transform(Y_test)
 
 # ========================= Modeling ==============================
 
-model = keras.models.Sequential([
-    layers.Dense(38, input_shape=X_train_scaled.shape[1:], kernel_initializer='normal', activation='relu'),
-    layers.Dense(175, activation='relu'),
-    layers.Dense(1, activation='linear')
-])
+input_shape = X_train.shape[1:]
 
-model.summary()
 
-model.compile(loss='mse', optimizer='adam', metrics=['mse', 'mae'])
-history = model.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled))
+def build_model(n_hidden=1, n_neurons=30, learning_rate=0.01, init='glorot_uniform'):
+    model = keras.models.Sequential()
+    options = {"input_shape": input_shape}
 
-y_train_pred_scaled = model.predict(X_train_scaled)
+    for layer in range(n_hidden):
+        model.add(layers.Dense(n_neurons, activation="relu", kernel_initializer=init, **options))
+        options = {}
+    model.add(layers.Dense(1, kernel_initializer=init))
+    optimizer = keras.optimizers.SGD(learning_rate)
+    model.compile(loss="mse", optimizer=optimizer)
+    return model
+
+
+keras_reg = KerasRegressor(build_model)
+
+# keras_reg.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled),
+#               callbacks=[keras.callbacks.EarlyStopping(patience=10)])
+
+
+# ==================== Hyperparameters Tuning ===================
+
+# TODO: need to tune n_hidden + n_neurons + 2 others
+hidden_layers = [1, 2, 3, 4, 5]
+neurons = list(range(1, 100))
+learn_rate = [0.01, 0.001, 0.03, 0.003]
+init_mode = ['glorot_uniform', 'uniform', 'normal']
+batch = [16, 32, 64, 128]
+
+param_grid = dict(n_hidden=hidden_layers, n_neurons=neurons, learning_rate=learn_rate, init=init_mode, batch_size=batch)
+
+rnd_search_cv = RandomizedSearchCV(keras_reg, param_grid, cv=3)
+rnd_search_cv.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled),
+                  callbacks=[keras.callbacks.EarlyStopping(patience=10)])
+
+print(rnd_search_cv.best_params_)
+
+y_train_pred_scaled = rnd_search_cv.predict(X_train_scaled)
 y_train_pred = scalerY.inverse_transform(y_train_pred_scaled)
 
 results = X_train.copy()
@@ -92,19 +124,49 @@ results = results[['predicted', 'actual']]
 print(results)
 
 
-# =================== Accuracy and Evaluation =====================
-
-y_test_pred_scaled = model.predict(X_test_scaled)
+y_test_pred_scaled = rnd_search_cv.predict(X_test_scaled)
 y_test_pred = scalerY.inverse_transform(y_test_pred_scaled)
 
-rmse = np.sqrt(mean_squared_error(Y_test, y_test_pred))
-print(rmse)
+test_rmse = np.sqrt(mean_squared_error(Y_test, y_test_pred))
+print(test_rmse)
 
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('loss')
-plt.xlabel('epoch')
-plt.legend(['train', 'validation'], loc='upper left')
-plt.grid(True)
-plt.show()
+# ============== old ==========================
+# model = keras.models.Sequential([
+#     layers.Dense(38, input_shape=X_train_scaled.shape[1:], kernel_initializer='normal', activation='relu'),
+#     layers.Dense(38, activation='relu', kernel_initializer='normal'),
+#     layers.Dense(38, activation='relu', kernel_initializer='normal'),
+#     layers.Dense(38, activation='relu', kernel_initializer='normal'),
+#     layers.Dense(38, activation='relu', kernel_initializer='normal'),
+#     layers.Dense(1, kernel_initializer='normal')
+# ])
+#
+# model.summary()
+#
+# model.compile(loss='mse', optimizer='adam', metrics=['mse', 'mae'])
+# history = model.fit(X_train_scaled, Y_train_scaled, epochs=50, validation_data=(X_valid_scaled, Y_valid_scaled))
+#
+# y_train_pred_scaled = model.predict(X_train_scaled)
+# y_train_pred = scalerY.inverse_transform(y_train_pred_scaled)
+#
+# results = X_train.copy()
+# results['actual'] = Y_train
+# results['predicted'] = y_train_pred
+# results = results[['predicted', 'actual']]
+# print(results)
+#
+# plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+# plt.title('model loss')
+# plt.ylabel('loss')
+# plt.xlabel('epoch')
+# plt.legend(['train', 'validation'], loc='upper left')
+# plt.grid(True)
+# plt.show()
+#
+# # =================== Accuracy and Evaluation =====================
+#
+# y_test_pred_scaled = model.predict(X_test_scaled)
+# y_test_pred = scalerY.inverse_transform(y_test_pred_scaled)
+#
+# test_rmse = np.sqrt(mean_squared_error(Y_test, y_test_pred))
+# print(test_rmse)
