@@ -78,41 +78,56 @@ Y_test_scaled = scalerY.transform(Y_test)
 input_shape = X_train.shape[1:]
 
 
-def build_model(n_hidden=1, n_neurons=30, learning_rate=0.01, init='glorot_uniform'):
+def build_model(n_hidden=1, n_neurons=30, learning_rate=0.01, init='glorot_uniform', momentum=0, activation='relu'):
     model = keras.models.Sequential()
-    options = {"input_shape": input_shape}
 
+    # input layer
+    model.add(layers.Dense(38, activation=activation, kernel_initializer=init, input_shape=input_shape))
+
+    # hidden layers
     for layer in range(n_hidden):
-        model.add(layers.Dense(n_neurons, activation="relu", kernel_initializer=init, **options))
-        options = {}
+        model.add(layers.Dense(n_neurons, activation=activation, kernel_initializer=init))
+
+    # output layer
     model.add(layers.Dense(1, kernel_initializer=init))
-    optimizer = keras.optimizers.SGD(learning_rate)
-    model.compile(loss="mse", optimizer=optimizer)
+    optimizer = keras.optimizers.SGD(learning_rate, momentum=momentum)
+    model.compile(loss='mse', optimizer=optimizer)
     return model
 
 
 keras_reg = KerasRegressor(build_model)
 
-# keras_reg.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled),
-#               callbacks=[keras.callbacks.EarlyStopping(patience=10)])
+
+# ==================== Hyper-parameters Tuning ===================
+
+hidden_layers = [5, 6, 7, 8]
+neurons = list(range(19, 100))
+learn_rate = [0.1, 0.01, 0.001, 0.02, 0.002, 0.03, 0.003]
+init_mode = ['uniform', 'normal', 'glorot_normal', 'glorot_uniform', 'he_normal', 'he_uniform']
+momen = [0, 0.5, 0.6, 0.7, 0.8, 0.9]
+activate = ['relu', 'elu']
 
 
-# ==================== Hyperparameters Tuning ===================
+param_grid = dict(n_hidden=hidden_layers, n_neurons=neurons, learning_rate=learn_rate,
+                  init=init_mode, momentum=momen, activation=activate)
 
-# TODO: need to tune n_hidden + n_neurons + 2 others
-hidden_layers = [1, 2, 3, 4, 5]
-neurons = list(range(1, 100))
-learn_rate = [0.01, 0.001, 0.03, 0.003]
-init_mode = ['glorot_uniform', 'uniform', 'normal']
-batch = [16, 32, 64, 128]
-
-param_grid = dict(n_hidden=hidden_layers, n_neurons=neurons, learning_rate=learn_rate, init=init_mode, batch_size=batch)
-
-rnd_search_cv = RandomizedSearchCV(keras_reg, param_grid, cv=3)
+rnd_search_cv = RandomizedSearchCV(keras_reg, param_grid, cv=5)
 rnd_search_cv.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled),
                   callbacks=[keras.callbacks.EarlyStopping(patience=10)])
 
 print(rnd_search_cv.best_params_)
+
+# Plot loss vs epochs of best estimator after randomized search CV
+history = rnd_search_cv.best_estimator_.model.history
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper right')
+plt.grid(True)
+plt.show()
 
 y_train_pred_scaled = rnd_search_cv.predict(X_train_scaled)
 y_train_pred = scalerY.inverse_transform(y_train_pred_scaled)
@@ -123,16 +138,21 @@ results['predicted'] = y_train_pred
 results = results[['predicted', 'actual']]
 print(results)
 
-
+# ==================== Accuracy & Evaluation ===========================
 y_test_pred_scaled = rnd_search_cv.predict(X_test_scaled)
 y_test_pred = scalerY.inverse_transform(y_test_pred_scaled)
 
 test_rmse = np.sqrt(mean_squared_error(Y_test, y_test_pred))
 print(test_rmse)
 
-# ============== old ==========================
+
+# ==================== No Hyper-parameters Tuning ==========================
+
+# leaky_relu = keras.layers.LeakyReLU(alpha=0.2)
+
 # model = keras.models.Sequential([
-#     layers.Dense(38, input_shape=X_train_scaled.shape[1:], kernel_initializer='normal', activation='relu'),
+#     layers.Dense(38, input_shape=X_train_scaled.shape[1:], activation='relu', kernel_initializer='normal'),
+#     layers.Dense(38, activation='relu', kernel_initializer='normal'),
 #     layers.Dense(38, activation='relu', kernel_initializer='normal'),
 #     layers.Dense(38, activation='relu', kernel_initializer='normal'),
 #     layers.Dense(38, activation='relu', kernel_initializer='normal'),
@@ -142,8 +162,9 @@ print(test_rmse)
 #
 # model.summary()
 #
-# model.compile(loss='mse', optimizer='adam', metrics=['mse', 'mae'])
-# history = model.fit(X_train_scaled, Y_train_scaled, epochs=50, validation_data=(X_valid_scaled, Y_valid_scaled))
+# model.compile(loss='mse', optimizer='sgd')
+# history = model.fit(X_train_scaled, Y_train_scaled, epochs=150, validation_data=(X_valid_scaled, Y_valid_scaled),
+#                     callbacks=[keras.callbacks.EarlyStopping(patience=20)])
 #
 # y_train_pred_scaled = model.predict(X_train_scaled)
 # y_train_pred = scalerY.inverse_transform(y_train_pred_scaled)
@@ -159,7 +180,7 @@ print(test_rmse)
 # plt.title('model loss')
 # plt.ylabel('loss')
 # plt.xlabel('epoch')
-# plt.legend(['train', 'validation'], loc='upper left')
+# plt.legend(['train', 'validation'], loc='upper right')
 # plt.grid(True)
 # plt.show()
 #
