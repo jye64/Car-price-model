@@ -93,9 +93,7 @@ model = keras.models.Sequential([
 
 model.summary()
 
-optimizer = keras.optimizers.SGD(decay=1e-4)
-
-model.compile(loss='mse', optimizer=optimizer)
+model.compile(loss='mse', optimizer='sgd')
 history = model.fit(X_train_scaled, Y_train_scaled, epochs=100, validation_data=(X_valid_scaled, Y_valid_scaled),
                     callbacks=[keras.callbacks.EarlyStopping(patience=30)])
 
