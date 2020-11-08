@@ -82,12 +82,12 @@ Y_test_scaled = scalerY.transform(Y_test)
 # ==================== No Hyper-parameters Tuning ==========================
 
 model = keras.models.Sequential([
-    layers.Dense(38, input_shape=X_train_scaled.shape[1:], activation='elu', kernel_initializer='normal'),
-    layers.Dense(38, activation='elu', kernel_initializer='normal'),
-    layers.Dense(38, activation='elu', kernel_initializer='normal'),
-    layers.Dense(38, activation='elu', kernel_initializer='normal'),
-    layers.Dense(38, activation='elu', kernel_initializer='normal'),
-    layers.Dense(38, activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, input_shape=X_train_scaled.shape[1:], activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, activation='elu', kernel_initializer='normal'),
+    layers.Dense(37, activation='elu', kernel_initializer='normal'),
     layers.Dense(1, kernel_initializer='normal')
 ])
 

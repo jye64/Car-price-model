@@ -84,11 +84,11 @@ Y_test_scaled = scalerY.transform(Y_test)
 input_shape = X_train.shape[1:]
 
 
-def build_model(n_hidden=1, n_neurons=38, learning_rate=0.01, init='glorot_uniform', activation='relu'):
+def build_model(n_hidden=1, n_neurons=37, learning_rate=0.01, init='glorot_uniform', activation='relu'):
     model = keras.models.Sequential()
 
     # input layer
-    model.add(layers.Dense(38, activation=activation, kernel_initializer=init, input_shape=input_shape))
+    model.add(layers.Dense(37, activation=activation, kernel_initializer=init, input_shape=input_shape))
 
     # hidden layers
     for layer in range(n_hidden):
